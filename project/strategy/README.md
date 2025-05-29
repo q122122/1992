@@ -130,3 +130,47 @@ This script provides a direct feed of real-time ticker data from OKX for the spe
 *   **Monitoring Specific Instruments:** Tracking the latest price and other ticker information for BTC-USDT-SWAP.
 *   **Data Source for Strategies:** Serving as a component in larger trading strategies that require real-time ticker data from OKX.
 *   **Testing and Development:** Allowing developers to test connectivity and data handling for the OKX WebSocket API.
+
+---
+
+## Bitget Real-Time Market Data Feed
+
+### Description
+
+The `bitget_websocket_feed.py` script establishes a persistent connection to the Bitget public WebSocket V2 API. It is designed to stream and display real-time market data for specific futures contracts.
+
+Key functionalities include:
+*   Connecting to the Bitget public WebSocket V2 endpoint: `wss://ws.bitget.com/v2/ws/public`.
+*   Subscribing to the "ticker" channel for the `BTCUSDT` instrument in the USDT-FUTURES market.
+*   Printing all incoming JSON messages from the subscribed channel directly to the console.
+*   Implementing a keep-alive mechanism by sending a "ping" string (text frame) to the server every 25 seconds to maintain the connection and ensure the 30-second activity requirement is met.
+*   Featuring automatic reconnection capabilities in case of connection drops or errors, with a 5-second delay between attempts.
+
+### Dependencies
+
+*   The script requires the `websockets` Python library. This dependency is already listed in the `requirements.txt` file.
+
+### How to Run
+
+1.  **Navigate to the strategy directory:**
+    ```bash
+    cd path/to/your/project/strategy
+    ```
+2.  **Ensure dependencies are installed:**
+    If you haven't already, install the required libraries:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Execute the script:**
+    ```bash
+    python bitget_websocket_feed.py
+    ```
+    The script will run continuously, printing live market data (tickers for BTCUSDT USDT-FUTURES) to your terminal. To stop the script, press `Ctrl+C`.
+
+### Purpose / Use Case
+
+This script provides a direct feed of real-time ticker data from Bitget for the specified USDT-margined futures contract. It is useful for:
+
+*   **Monitoring Specific Futures Contracts:** Tracking the latest price and other ticker information for BTCUSDT on Bitget.
+*   **Data Source for Strategies:** Serving as a component in larger trading strategies that require real-time ticker data from Bitget.
+*   **Testing and Development:** Allowing developers to test connectivity and data handling for the Bitget V2 WebSocket API.
