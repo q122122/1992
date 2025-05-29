@@ -86,3 +86,47 @@ This script serves as a foundational component for obtaining real-time market da
 *   **Live Data Observation:** Allows developers and analysts to directly observe the flow of trade and order book data for `BTCUSDT`.
 *   **Development Base:** Can be used as a starting point or integrated into more complex data processing systems, trading bots, or analytical tools that require a live feed from Binance.
 *   **Strategy Prototyping:** Provides the raw data necessary for developing and testing real-time trading strategies.
+
+---
+
+## OKX Real-Time Market Data Feed
+
+### Description
+
+The `okx_websocket_feed.py` script establishes a persistent connection to the OKX public WebSocket API. It is designed to stream and display real-time market data for specific instruments.
+
+Key functionalities include:
+*   Connecting to the OKX public WebSocket endpoint: `wss://ws.okx.com:8443/ws/v5/public`.
+*   Subscribing to the "tickers" channel for the `BTC-USDT-SWAP` instrument.
+*   Printing all incoming JSON messages from the subscribed channel directly to the console.
+*   Implementing a keep-alive mechanism by sending a "ping" string to the server every 25 seconds to maintain the connection.
+*   Featuring automatic reconnection capabilities in case of connection drops or errors, with a 5-second delay between attempts.
+
+### Dependencies
+
+*   The script requires the `websockets` Python library. This dependency is already listed in the `requirements.txt` file.
+
+### How to Run
+
+1.  **Navigate to the strategy directory:**
+    ```bash
+    cd path/to/your/project/strategy
+    ```
+2.  **Ensure dependencies are installed:**
+    If you haven't already, install the required libraries:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Execute the script:**
+    ```bash
+    python okx_websocket_feed.py
+    ```
+    The script will run continuously, printing live market data (tickers for BTC-USDT-SWAP) to your terminal. To stop the script, press `Ctrl+C`.
+
+### Purpose / Use Case
+
+This script provides a direct feed of real-time ticker data from OKX for the specified SWAP instrument. It is useful for:
+
+*   **Monitoring Specific Instruments:** Tracking the latest price and other ticker information for BTC-USDT-SWAP.
+*   **Data Source for Strategies:** Serving as a component in larger trading strategies that require real-time ticker data from OKX.
+*   **Testing and Development:** Allowing developers to test connectivity and data handling for the OKX WebSocket API.
