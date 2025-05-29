@@ -217,3 +217,38 @@ This script provides a direct feed of real-time ticker data from Bybit for the B
 *   **Monitoring Specific Perpetual Contracts:** Tracking the latest price and other ticker information for BTCUSDT on Bybit.
 *   **Data Source for Strategies:** Serving as a component in larger trading strategies that require real-time ticker data from Bybit's V5 API.
 *   **Testing and Development:** Allowing developers to test connectivity and data handling for the Bybit V5 WebSocket API.
+
+---
+
+## Multi-Feed Integration and Processing Concepts
+
+This section details scripts and conceptual designs related to integrating data from multiple exchange feeds for arbitrage analysis.
+
+### `common_data_structures.py`
+
+*   **Purpose:** This script defines the `OrderBookUpdate` class, which serves as a standardized data structure for holding simplified market data (best bid/ask) from various exchanges. Using a common format is crucial for processing and comparing data from different sources in a consistent manner.
+*   **Fields in `OrderBookUpdate`:**
+    *   `exchange_name` (str): Name of the exchange (e.g., "binance", "bybit").
+    *   `symbol` (str): Standardized trading symbol (e.g., "BTC/USDT").
+    *   `best_bid` (float): The highest current bid price.
+    *   `best_ask` (float): The lowest current ask price.
+    *   `timestamp` (float): Unix timestamp of the update, typically generated when the data is received or processed.
+
+### `multi_exchange_arbitrage.py`
+
+*   **Purpose:** This script demonstrates a proof-of-concept for calculating arbitrage opportunities using *simulated* real-time data streams from two hypothetical exchanges.
+*   **Functionality:**
+    *   It simulates two independent market data feeds, generating random bid/ask prices.
+    *   It uses the `OrderBookUpdate` structure from `common_data_structures.py` to store and pass around this simulated data.
+    *   It then attempts to identify arbitrage opportunities by comparing the bid/ask prices from these two simulated feeds.
+*   **Context:** This script serves as a developmental step towards building an arbitrage system that can operate on live data. It helps in designing and testing the core arbitrage logic before integrating with actual exchange WebSocket feeds.
+
+### `feed_manager_concept.py`
+
+*   **Purpose:** This script is a conceptual design document that outlines the architecture for a "Feed Manager." The manager's role would be to run and manage multiple live WebSocket feed scripts (like `binance_websocket_feed.py`, `okx_websocket_feed.py`, etc.) and process their data in a unified way.
+*   **Key Concepts Covered:**
+    *   **Process Management:** Launching each individual WebSocket feed script as a separate process using Python's `multiprocessing` library. This allows for parallel data fetching from multiple exchanges.
+    *   **Inter-Process Communication (IPC):** Utilizing a `multiprocessing.Queue` to enable the individual feed processes to send their raw, exchange-specific JSON data back to a central data processing component within the Feed Manager.
+    *   **Data Parsing and Standardization:** The central processing component would retrieve raw JSON messages from the queue. It would then parse this data and, most importantly, convert it from the exchange's specific format into the standardized `OrderBookUpdate` format (defined in `common_data_structures.py`). This step requires custom parsing logic for each exchange.
+    *   **Modification of Feed Scripts:** A critical point emphasized is that the existing individual feed scripts (which currently print to `stdout`) would need to be modified. They must be adapted to accept a queue object and push their data into this queue instead of printing.
+*   **Status:** It is important to note that `feed_manager_concept.py` is a **planning and design script**. It outlines *how* such a system might be built but is not a fully operational feed manager itself. It serves as a blueprint for future development.
