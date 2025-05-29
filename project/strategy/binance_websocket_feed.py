@@ -2,6 +2,7 @@ import websockets
 import asyncio
 import json
 import time
+from multiprocessing import Queue # For type hinting, can be removed if queue is always passed
 
 # Binance USDT-M Futures WebSocket endpoint
 BINANCE_FUTURES_WS_ENDPOINT = "wss://fstream.binance.com/ws"
@@ -20,11 +21,19 @@ SUBSCRIBE_MESSAGE = {
 PING_INTERVAL_SECONDS = 2.5 * 60  # Send a ping every 2.5 minutes
 RECONNECT_DELAY_SECONDS = 5      # Wait 5 seconds before attempting to reconnect
 
-async def connect_binance_ws():
+async def connect_binance_ws(output_queue: Queue = None):
     """
     Establishes a WebSocket connection to Binance USDT-M Futures,
-    subscribes to specified streams, prints received messages,
-    handles keep-alive, and implements reconnection logic.
+    subscribes to specified streams, and handles messages.
+
+    If an output_queue is provided, raw JSON messages are put onto the queue
+    as a tuple ('binance', message_string). Otherwise, messages are printed to stdout.
+
+    Handles keep-alive and implements reconnection logic.
+
+    Args:
+        output_queue (multiprocessing.Queue, optional): A queue to send data to.
+                                                        Defaults to None.
     """
     while True:  # Outer loop for reconnection
         try:
@@ -42,7 +51,17 @@ async def connect_binance_ws():
                     try:
                         # Set a timeout for receiving messages to allow periodic pings
                         message = await asyncio.wait_for(websocket.recv(), timeout=PING_INTERVAL_SECONDS / 2)
-                        print(f"Received message: {message}")
+                        
+                        if output_queue:
+                            # Send data to the queue if it's provided
+                            try:
+                                output_queue.put(('binance', message))
+                            except Exception as e:
+                                print(f"[BinanceFeed] Error putting message to queue: {e}")
+                        else:
+                            # Default behavior: print to console
+                            print(f"Received message: {message}")
+                        
                         # Reset last_ping_time if a message is received (optional, as server pings might be sufficient)
                         # last_ping_time = time.time() 
                     except asyncio.TimeoutError:
@@ -82,8 +101,17 @@ async def connect_binance_ws():
         await asyncio.sleep(RECONNECT_DELAY_SECONDS)
 
 if __name__ == "__main__":
-    print("Starting Binance Futures WebSocket feed script...")
+    # This block allows the script to be run standalone for testing.
+    # When run directly, it will default to printing messages to the console
+    # as output_queue is None.
+    print("Starting Binance Futures WebSocket feed script (standalone mode)...")
     try:
+        # For testing the queue mechanism directly in standalone mode, you could do:
+        # from multiprocessing import Queue as MpQueue
+        # test_q = MpQueue()
+        # asyncio.run(connect_binance_ws(output_queue=test_q))
+        # # Then, you might want to get items from test_q here to see them.
+        # # For simplicity, we just run it with default print behavior.
         asyncio.run(connect_binance_ws())
     except KeyboardInterrupt:
         print("WebSocket feed script stopped by user.")

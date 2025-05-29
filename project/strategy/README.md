@@ -54,13 +54,13 @@ Key functionalities include:
 *   Subscribing to the following public market data streams for `BTCUSDT`:
     *   `btcusdt@aggTrade`: For real-time aggregated trade information (price, quantity, timestamp).
     *   `btcusdt@depth`: For real-time updates to the order book (best bid/ask and changes in depth).
-*   Printing all incoming JSON messages directly to the console.
+*   Printing all incoming JSON messages directly to the console **or** outputting them as a tuple `('binance', message_string)` to a `multiprocessing.Queue` if one is provided to its `connect_binance_ws` function. This allows for integration with external data processing scripts like `live_feed_manager.py`.
 *   Implementing a keep-alive mechanism by sending periodic pings to the server to maintain the connection.
 *   Featuring automatic reconnection capabilities in case of connection drops or errors.
 
 ### Dependencies
 
-*   The script requires the `websockets` Python library. This dependency is included in the `requirements.txt` file.
+*   The script requires the `websockets` Python library (and `multiprocessing` for the queue feature, which is a standard library). This dependency is included in the `requirements.txt` file.
 
 ### How to Run
 
@@ -73,18 +73,19 @@ Key functionalities include:
     ```bash
     pip install -r requirements.txt
     ```
-3.  **Execute the script:**
+3.  **Execute the script (standalone mode, prints to console):**
     ```bash
     python binance_websocket_feed.py
     ```
     The script will run continuously, printing live market data to your terminal. To stop the script, press `Ctrl+C`.
+    When integrated into a manager script (like `live_feed_manager.py`), it's typically run as a separate process with a queue provided to its main function.
 
 ### Purpose / Use Case
 
 This script serves as a foundational component for obtaining real-time market data from Binance Futures. Its primary purposes are:
 
 *   **Live Data Observation:** Allows developers and analysts to directly observe the flow of trade and order book data for `BTCUSDT`.
-*   **Development Base:** Can be used as a starting point or integrated into more complex data processing systems, trading bots, or analytical tools that require a live feed from Binance.
+*   **Development Base:** Can be used as a starting point or integrated into more complex data processing systems (like `live_feed_manager.py`), trading bots, or analytical tools that require a live feed from Binance.
 *   **Strategy Prototyping:** Provides the raw data necessary for developing and testing real-time trading strategies.
 
 ---
@@ -94,6 +95,7 @@ This script serves as a foundational component for obtaining real-time market da
 ### Description
 
 The `okx_websocket_feed.py` script establishes a persistent connection to the OKX public WebSocket API. It is designed to stream and display real-time market data for specific instruments.
+**(Note: This script has not yet been updated to support `multiprocessing.Queue` output for integration with a feed manager.)**
 
 Key functionalities include:
 *   Connecting to the OKX public WebSocket endpoint: `wss://ws.okx.com:8443/ws/v5/public`.
@@ -138,6 +140,7 @@ This script provides a direct feed of real-time ticker data from OKX for the spe
 ### Description
 
 The `bitget_websocket_feed.py` script establishes a persistent connection to the Bitget public WebSocket V2 API. It is designed to stream and display real-time market data for specific futures contracts.
+**(Note: This script has not yet been updated to support `multiprocessing.Queue` output for integration with a feed manager.)**
 
 Key functionalities include:
 *   Connecting to the Bitget public WebSocket V2 endpoint: `wss://ws.bitget.com/v2/ws/public`.
@@ -182,6 +185,7 @@ This script provides a direct feed of real-time ticker data from Bitget for the 
 ### Description
 
 The `bybit_websocket_feed.py` script connects to the Bybit V5 public linear perpetuals WebSocket API (`wss://stream.bybit.com/v5/public/linear`). It is designed to stream and display real-time market data.
+**(Note: This script has not yet been updated to support `multiprocessing.Queue` output for integration with a feed manager.)**
 
 Key functionalities include:
 *   Subscribing to the `tickers.BTCUSDT` topic to receive real-time ticker updates for the BTCUSDT linear perpetual contract.
@@ -250,5 +254,21 @@ This section details scripts and conceptual designs related to integrating data 
     *   **Process Management:** Launching each individual WebSocket feed script as a separate process using Python's `multiprocessing` library. This allows for parallel data fetching from multiple exchanges.
     *   **Inter-Process Communication (IPC):** Utilizing a `multiprocessing.Queue` to enable the individual feed processes to send their raw, exchange-specific JSON data back to a central data processing component within the Feed Manager.
     *   **Data Parsing and Standardization:** The central processing component would retrieve raw JSON messages from the queue. It would then parse this data and, most importantly, convert it from the exchange's specific format into the standardized `OrderBookUpdate` format (defined in `common_data_structures.py`). This step requires custom parsing logic for each exchange.
-    *   **Modification of Feed Scripts:** A critical point emphasized is that the existing individual feed scripts (which currently print to `stdout`) would need to be modified. They must be adapted to accept a queue object and push their data into this queue instead of printing.
+    *   **Modification of Feed Scripts:** A critical point emphasized is that the existing individual feed scripts (which currently print to `stdout`) would need to be modified. They must be adapted to accept a queue object and push their data into this queue instead of printing. (The `binance_websocket_feed.py` script has been updated to support this queue-based output).
 *   **Status:** It is important to note that `feed_manager_concept.py` is a **planning and design script**. It outlines *how* such a system might be built but is not a fully operational feed manager itself. It serves as a blueprint for future development.
+
+### `live_feed_manager.py`
+
+*   **Purpose:** This script is the first operational implementation step based on the `feed_manager_concept.py`. It manages a live data feed from Binance, processes its raw WebSocket output, and standardizes it.
+*   **Current Capabilities:**
+    *   Launches the `binance_websocket_feed.py` script (which has been updated to support queue output) as a separate process using `multiprocessing.Process`.
+    *   Receives raw Binance data messages (as tuples `('binance', message_string)`) via a `multiprocessing.Queue`.
+    *   Parses the incoming JSON strings from Binance's `aggTrade` (aggregate trade) and `depthUpdate` (order book changes) streams.
+    *   Converts the parsed data into the common `OrderBookUpdate` format (defined in `common_data_structures.py`), including standardizing the symbol format and converting timestamps.
+    *   Stores these standardized `OrderBookUpdate` objects in a local dictionary and prints them to the console for monitoring.
+*   **How to Run:**
+    ```bash
+    python live_feed_manager.py
+    ```
+    The script will run for a predefined duration (currently 60 seconds for testing purposes) and then gracefully terminate the Binance feed process.
+*   **Development Status:** This script represents the initial step towards a comprehensive live feed handling system. It successfully demonstrates the integration of a single live feed (`binance_websocket_feed.py`) using `multiprocessing` and `Queue`, along with the parsing and standardization of its data. Future work will involve extending it to manage multiple feeds, enhancing parsing capabilities, and integrating with arbitrage logic.

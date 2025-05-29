@@ -10,11 +10,12 @@ The core idea is to leverage price discrepancies between the same perpetual cont
 
 The system architecture, as outlined in the development guide, is planned to include the following major components:
 
-*   **Market Data Subscription:** Individual WebSocket feed scripts have been developed to connect to and stream raw market data from several exchanges (Binance, OKX, Bybit, Bitget).
+*   **Market Data Subscription:** Individual WebSocket feed scripts have been developed to connect to and stream raw market data from several exchanges (Binance, OKX, Bybit, Bitget). The `binance_websocket_feed.py` has been enhanced to support outputting data to a `multiprocessing.Queue` for integration with a central manager.
 *   **Data Integration and Processing:** Conceptual work has commenced on a "Feed Manager" system. This system will be responsible for:
     *   Managing the execution of individual feed scripts as separate processes.
     *   Collecting raw data from these feeds via inter-process communication (queues).
     *   Parsing exchange-specific data formats and translating them into a standardized internal structure (e.g., `OrderBookUpdate`).
+    An initial implementation, `live_feed_manager.py`, now handles this for the Binance feed.
 *   **Strategy Development:** For implementing and testing various arbitrage strategies. The `project/strategy/` directory currently houses:
     *   `arbitrage_discovery.py`: An initial script for identifying arbitrage from REST API order book data.
     *   `multi_exchange_arbitrage.py`: A script demonstrating arbitrage logic using simulated WebSocket data streams.
@@ -27,16 +28,21 @@ The system architecture, as outlined in the development guide, is planned to inc
 The project is currently in the **initial development and conceptualization phase**. Key milestones achieved include:
 
 *   **Individual WebSocket Feeds:** Standalone Python scripts for connecting to and streaming public market data (primarily tickers or order book snapshots) have been created for:
-    *   Binance (`binance_websocket_feed.py`)
+    *   Binance (`binance_websocket_feed.py` - *now supports `multiprocessing.Queue` output*)
     *   OKX (`okx_websocket_feed.py`)
     *   Bybit (`bybit_websocket_feed.py`)
     *   Bitget (`bitget_websocket_feed.py`)
 *   **Standardized Data Structure:** `project/strategy/common_data_structures.py` has been created, defining an `OrderBookUpdate` class. This class provides a common format for representing simplified order book data (best bid/ask, symbol, exchange, timestamp) internally.
 *   **Simulated Arbitrage Logic:** `project/strategy/multi_exchange_arbitrage.py` has been developed. This script simulates multiple exchange data feeds and demonstrates the core logic for identifying arbitrage opportunities using the standardized `OrderBookUpdate` structure. It serves as a testbed for strategy mechanics.
-*   **Feed Integration Planning:** `project/strategy/feed_manager_concept.py` has been written as a conceptual outline. This script details the proposed architecture for a "Feed Manager" that would use multiprocessing to run individual feed scripts, collect their data via queues, parse exchange-specific formats, and standardize it into `OrderBookUpdate` objects for consumption by arbitrage strategies. This remains a design document for future implementation.
+*   **Feed Integration Planning:** `project/strategy/feed_manager_concept.py` has been written as a conceptual outline. This script details the proposed architecture for a "Feed Manager" that would use multiprocessing to run individual feed scripts, collect their data via queues, parse exchange-specific formats, and standardize it into `OrderBookUpdate` objects.
+*   **Initial Live Feed Management:** An initial version of `project/strategy/live_feed_manager.py` has been implemented. This script:
+    *   Manages the `binance_websocket_feed.py` script as a separate process.
+    *   Receives live data from the Binance feed via a `multiprocessing.Queue`.
+    *   Parses Binance's `aggTrade` and `depthUpdate` stream messages into the standardized `OrderBookUpdate` format.
+    *   Stores and logs these standardized updates. This serves as a foundational step for a multi-feed system.
 *   **Initial REST-based Arbitrage Script:** The `arbitrage_discovery.py` script was an early component for fetching order book data via REST APIs to find basic arbitrage spreads.
 
-Further development will focus on implementing the Feed Manager based on the concepts in `feed_manager_concept.py`, refining data parsing logic for each exchange, and then integrating this live, standardized data into the arbitrage calculation engine.
+Further development will focus on extending `live_feed_manager.py` to support more exchanges (by updating their respective feed scripts for queue output and implementing parsers), refining data parsing logic, and then integrating this live, standardized data into the arbitrage calculation engine.
 
 ## Disclaimer
 
