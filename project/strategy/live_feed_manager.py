@@ -7,12 +7,12 @@ import queue # For queue.Empty exception
 # or from the 'project/strategy/' directory.
 from .common_data_structures import OrderBookUpdate
 from .binance_websocket_feed import connect_binance_ws
+from .okx_websocket_feed import connect_okx_ws
 
 # --- Data Storage ---
 # Stores the latest OrderBookUpdate for each symbol from each exchange.
 # Structure: market_data[symbol][exchange_name] = OrderBookUpdate_instance
-# For this script, we are only handling 'binance'
-market_data = {} 
+market_data = {}
 
 # --- Parser Function for Binance Messages ---
 def parse_binance_message(raw_json_string: str) -> OrderBookUpdate | None:
@@ -107,6 +107,73 @@ def parse_binance_message(raw_json_string: str) -> OrderBookUpdate | None:
         print(f"[Parser - Binance] Unexpected error parsing message: {e}. Data: {raw_json_string}")
         return None
 
+# --- Parser Function for OKX Messages ---
+def parse_okx_message(raw_json_string: str) -> OrderBookUpdate | None:
+    """
+    Parses a raw JSON string from an OKX WebSocket feed (tickers channel)
+    and converts it into an OrderBookUpdate object.
+
+    Args:
+        raw_json_string (str): The raw JSON message string from the feed.
+                               Example: {"arg":{"channel":"tickers","instId":"BTC-USDT-SWAP"},"data":[{"instType":"SWAP","instId":"BTC-USDT-SWAP","last":"...","askPx":"...","bidPx":"...","ts":"..."}]}
+
+    Returns:
+        OrderBookUpdate | None: An OrderBookUpdate object if parsing is successful,
+                                otherwise None.
+    """
+    try:
+        data = json.loads(raw_json_string)
+
+        # Check for subscription confirmation or error messages first
+        if 'event' in data:
+            if data['event'] == 'subscribe':
+                print(f"[Parser - OKX] Subscription confirmation: {data.get('arg')}")
+            elif data['event'] == 'error':
+                print(f"[Parser - OKX] Error message from OKX: {data.get('msg', 'No error message provided')}")
+            return None # Not actual market data
+
+        # Assuming data is from a 'tickers' channel as subscribed
+        if 'arg' in data and 'channel' in data['arg'] and data['arg']['channel'] == 'tickers':
+            if 'data' in data and data['data']:
+                data_item = data['data'][0] # Tickers data is usually an array with one item
+                
+                inst_id = data_item.get('instId') # e.g., "BTC-USDT-SWAP"
+                ask_px_str = data_item.get('askPx')
+                bid_px_str = data_item.get('bidPx')
+                ts_str = data_item.get('ts') # Timestamp in milliseconds as a string
+
+                if not all([inst_id, ask_px_str, bid_px_str, ts_str]):
+                    print(f"[Parser - OKX] Missing essential fields in ticker data: {data_item}")
+                    return None
+                
+                # Standardize symbol: OKX uses "BTC-USDT-SWAP", common format might be "BTC/USDT" (for spot-like comparison)
+                # For perpetuals, it's often good to keep a clear distinction or map them.
+                # For this example, let's assume we want to map SWAP to /USDT for simplicity if it's a USDT perp.
+                standard_symbol = inst_id
+                if "-USDT-SWAP" in inst_id:
+                    standard_symbol = inst_id.replace("-USDT-SWAP", "/USDT")
+                elif "-USD-SWAP" in inst_id: # For inverse contracts if needed
+                    standard_symbol = inst_id.replace("-USD-SWAP", "/USD_INVERSE") 
+                # Add more specific mapping rules if needed
+
+                return OrderBookUpdate(exchange_name='okx',
+                                       symbol=standard_symbol,
+                                       best_bid=float(bid_px_str),
+                                       best_ask=float(ask_px_str),
+                                       timestamp=float(ts_str) / 1000.0) # Convert ms string to float seconds
+            else:
+                # print(f"[Parser - OKX] 'data' field missing or empty in tickers message: {raw_json_string}")
+                return None
+        else:
+            # print(f"[Parser - OKX] Message is not a recognized tickers update: {raw_json_string[:100]}")
+            return None
+
+    except json.JSONDecodeError as e:
+        print(f"[Parser - OKX] JSONDecodeError: {e} for message: {raw_json_string}")
+        return None
+    except Exception as e:
+        print(f"[Parser - OKX] Unexpected error parsing message: {e}. Data: {raw_json_string}")
+        return None
 
 # --- Main Manager Logic ---
 if __name__ == "__main__":
@@ -114,22 +181,33 @@ if __name__ == "__main__":
 
     # Create a multiprocessing Queue for data from feed processes
     data_queue = multiprocessing.Queue()
+    feed_processes = [] # List to keep track of feed processes
 
     # --- Start Binance Feed Process ---
-    # The `connect_binance_ws` function is imported from binance_websocket_feed.py
-    # It's designed to accept an `output_queue` argument.
     print("Initializing Binance feed process...")
     binance_feed_process = multiprocessing.Process(
         target=connect_binance_ws,
-        args=(data_queue,), # Pass the queue to the feed process
-        daemon=True # Optional: make it a daemon process so it exits when main process exits
+        args=(data_queue,),
+        daemon=True
     )
+    feed_processes.append(binance_feed_process)
     binance_feed_process.start()
     print("Binance feed process started.")
 
+    # --- Start OKX Feed Process ---
+    print("Initializing OKX feed process...")
+    okx_feed_process = multiprocessing.Process(
+        target=connect_okx_ws,
+        args=(data_queue,),
+        daemon=True
+    )
+    feed_processes.append(okx_feed_process)
+    okx_feed_process.start()
+    print("OKX feed process started.")
+
     # --- Main Loop to Process Data from Queue ---
     print("Listening for data from feed processes...")
-    running_duration_seconds = 60 # Run for 60 seconds for testing
+    running_duration_seconds = 90 # Run for 90 seconds for testing with two feeds
     start_time = time.time()
 
     try:
@@ -138,21 +216,24 @@ if __name__ == "__main__":
                 # Get data from the queue with a timeout
                 # Data format expected: (exchange_name_str, raw_message_json_str)
                 exchange_name, raw_message = data_queue.get(timeout=1.0)
-
+                
+                parsed_update = None
                 if exchange_name == 'binance':
                     parsed_update = parse_binance_message(raw_message)
-                    if parsed_update:
-                        # Store the parsed data
-                        if parsed_update.symbol not in market_data:
-                            market_data[parsed_update.symbol] = {}
-                        market_data[parsed_update.symbol][parsed_update.exchange_name] = parsed_update
-                        
-                        print(f"LIVE MANAGER: Received {parsed_update}")
-                        # Here, you could also trigger arbitrage calculations if new data is available
-                        # for multiple exchanges for the same symbol.
+                elif exchange_name == 'okx':
+                    parsed_update = parse_okx_message(raw_message)
                 else:
-                    print(f"LIVE MANAGER: Received data from unknown exchange: {exchange_name}")
+                    print(f"LIVE MANAGER: Received data from unhandled exchange: {exchange_name}")
 
+                if parsed_update:
+                    # Store the parsed data
+                    if parsed_update.symbol not in market_data:
+                        market_data[parsed_update.symbol] = {}
+                    market_data[parsed_update.symbol][parsed_update.exchange_name] = parsed_update
+                    
+                    print(f"LIVE MANAGER: Received {parsed_update}")
+                    # Here, you could also trigger arbitrage calculations if new data is available
+                    # for multiple exchanges for the same symbol.
             except queue.Empty:
                 # Timeout occurred, no data in queue. This is normal.
                 # print("LIVE MANAGER: Queue empty, continuing...")
@@ -165,11 +246,12 @@ if __name__ == "__main__":
         print("LIVE MANAGER: KeyboardInterrupt received. Shutting down...")
     finally:
         print("LIVE MANAGER: Terminating feed processes...")
-        if binance_feed_process.is_alive():
-            binance_feed_process.terminate() # Terminate the child process
-            binance_feed_process.join(timeout=5) # Wait for it to exit
-            if binance_feed_process.is_alive():
-                print("LIVE MANAGER: Binance feed process did not terminate cleanly, killing.")
-                binance_feed_process.kill() # Force kill if terminate fails
-
+        for process in feed_processes:
+            if process.is_alive():
+                print(f"LIVE MANAGER: Terminating {process.name} (PID: {process.pid})...")
+                process.terminate()
+                process.join(timeout=5)
+                if process.is_alive():
+                    print(f"LIVE MANAGER: {process.name} did not terminate cleanly, killing.")
+                    process.kill()
         print("LIVE MANAGER: Shutdown complete.")
