@@ -174,3 +174,46 @@ This script provides a direct feed of real-time ticker data from Bitget for the 
 *   **Monitoring Specific Futures Contracts:** Tracking the latest price and other ticker information for BTCUSDT on Bitget.
 *   **Data Source for Strategies:** Serving as a component in larger trading strategies that require real-time ticker data from Bitget.
 *   **Testing and Development:** Allowing developers to test connectivity and data handling for the Bitget V2 WebSocket API.
+
+---
+
+## Bybit Real-Time Market Data Feed
+
+### Description
+
+The `bybit_websocket_feed.py` script connects to the Bybit V5 public linear perpetuals WebSocket API (`wss://stream.bybit.com/v5/public/linear`). It is designed to stream and display real-time market data.
+
+Key functionalities include:
+*   Subscribing to the `tickers.BTCUSDT` topic to receive real-time ticker updates for the BTCUSDT linear perpetual contract.
+*   Printing all incoming JSON messages from the subscribed topic directly to the console.
+*   Implementing a keep-alive mechanism by sending a `{"op":"ping"}` JSON message to the server every 15 seconds to maintain the connection (Bybit requires a ping within 20 seconds if no other messages are sent).
+*   Featuring automatic reconnection capabilities in case of connection drops or errors, with a 5-second delay between attempts.
+
+### Dependencies
+
+*   The script requires the `websockets` Python library. This dependency is already listed in the `requirements.txt` file.
+
+### How to Run
+
+1.  **Navigate to the strategy directory:**
+    ```bash
+    cd path/to/your/project/strategy
+    ```
+2.  **Ensure dependencies are installed:**
+    If you haven't already, install the required libraries:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Execute the script:**
+    ```bash
+    python bybit_websocket_feed.py
+    ```
+    The script will run continuously, printing live market data (tickers for BTCUSDT) to your terminal. To stop the script, press `Ctrl+C`.
+
+### Purpose / Use Case
+
+This script provides a direct feed of real-time ticker data from Bybit for the BTCUSDT linear perpetual contract. It is useful for:
+
+*   **Monitoring Specific Perpetual Contracts:** Tracking the latest price and other ticker information for BTCUSDT on Bybit.
+*   **Data Source for Strategies:** Serving as a component in larger trading strategies that require real-time ticker data from Bybit's V5 API.
+*   **Testing and Development:** Allowing developers to test connectivity and data handling for the Bybit V5 WebSocket API.
